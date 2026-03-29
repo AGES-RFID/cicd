@@ -1,0 +1,34 @@
+name: Reusable Sync to GitLab
+
+on:
+  workflow_call:
+    inputs:
+      gitlab_repo_url:
+        description: 'URL do repositório de destino no GitLab (HTTPS)'
+        required: true
+        type: string
+    secrets:
+      gitlab_token:
+        description: 'Token com permissão de escrita no GitLab'
+        required: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 
+
+      - name: Mirror to GitLab
+        run: |
+          # 1. Constrói a URL autenticada usando o Token
+          # O sed insere 'oauth2:TOKEN@' logo após o 'https://'
+          AUTH_URL=$(echo "${{ inputs.gitlab_repo_url }}" | sed "s|https://|https://oauth2:${{ secrets.gitlab_token }}@|")
+          
+          # 2. Adiciona o GitLab como um novo "remote"
+          git remote add gitlab "$AUTH_URL"
+          
+          # 3. Sincronização de todas as branches e tags
+          git push gitlab --mirror
