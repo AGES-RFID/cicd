@@ -5,6 +5,7 @@ on:
     secrets:
       gitlab_token:
         required: true
+  workflow_dispatch:
 
 env:
   GITLAB_BASE_PATH: "sistema-de-controle-inteligente-de-estacionamento-com-rfid"
@@ -17,14 +18,15 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 
+          fetch-depth: 0
 
-      - name: Mirror to GitLab
+      - name: Sync to GitLab
         run: |
           GITLAB_REPO_NAME="${{ github.event.repository.name }}"
           AUTH_URL="https://oauth2:${{ secrets.gitlab_token }}@${{ env.GITLAB_DOMAIN }}/${{ env.GITLAB_BASE_PATH }}/${GITLAB_REPO_NAME}.git"
-          
-          echo "[INFO] Sincronizando: ${GITLAB_REPO_NAME} para o GitLab da AGES..."
-          
+
+          echo "[INFO] Sincronizando: ${GITLAB_REPO_NAME}..."
           git remote add gitlab "$AUTH_URL"
-          git push gitlab --mirror
+          git fetch origin '+refs/heads/*:refs/heads/*' --update-head-ok
+          git push gitlab "refs/heads/*:refs/heads/*" --force
+          git push gitlab --tags --force
