@@ -2,15 +2,13 @@ name: Reusable Sync to GitLab
 
 on:
   workflow_call:
-    inputs:
-      gitlab_repo_url:
-        description: 'URL do repositório de destino no GitLab (HTTPS)'
-        required: true
-        type: string
     secrets:
       gitlab_token:
-        description: 'Token com permissão de escrita no GitLab'
         required: true
+
+env:
+  GITLAB_BASE_PATH: "sistema-de-controle-inteligente-de-estacionamento-com-rfid"
+  GITLAB_DOMAIN: "tools.ages.pucrs.br"
 
 jobs:
   sync:
@@ -23,12 +21,10 @@ jobs:
 
       - name: Mirror to GitLab
         run: |
-          # 1. Constrói a URL autenticada usando o Token
-          # O sed insere 'oauth2:TOKEN@' logo após o 'https://'
-          AUTH_URL=$(echo "${{ inputs.gitlab_repo_url }}" | sed "s|https://|https://oauth2:${{ secrets.gitlab_token }}@|")
+          GITLAB_REPO_NAME="${{ github.event.repository.name }}"
+          AUTH_URL="https://oauth2:${{ secrets.gitlab_token }}@${{ env.GITLAB_DOMAIN }}/${{ env.GITLAB_BASE_PATH }}/${GITLAB_REPO_NAME}.git"
           
-          # 2. Adiciona o GitLab como um novo "remote"
+          echo "[INFO] Sincronizando: ${GITLAB_REPO_NAME} para o GitLab da AGES..."
+          
           git remote add gitlab "$AUTH_URL"
-          
-          # 3. Sincronização de todas as branches e tags
           git push gitlab --mirror
