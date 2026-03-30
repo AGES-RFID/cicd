@@ -1,0 +1,81 @@
+name: CI .NET
+
+on:
+  workflow_call:
+    inputs:
+      dotnet-version:
+        type: string
+        default: "10.0.x"
+      working-directory:
+        type: string
+        default: "."
+    secrets:
+      GH_TOKEN:
+        required: true
+
+jobs:
+  pr-validation:
+    name: Validate PR
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: AGES-RFID/cicd/.github/actions/validate-pr@main
+        with:
+          github-token: ${{ secrets.GH_TOKEN }}
+
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: AGES-RFID/cicd/.github/actions/setup-dotnet@main
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Verify formatting
+        working-directory: ${{ inputs.working-directory }}
+        run: dotnet format --verify-no-changes
+
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: AGES-RFID/cicd/.github/actions/setup-dotnet@main
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Run unit tests
+        working-directory: ${{ inputs.working-directory }}
+        run: dotnet test Backend.Tests.Unit/ --no-restore
+
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: AGES-RFID/cicd/.github/actions/setup-dotnet@main
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Run integration tests
+        working-directory: ${{ inputs.working-directory }}
+        run: dotnet test Backend.Tests.Integration/ --no-restore
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: AGES-RFID/cicd/.github/actions/setup-dotnet@main
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Build release artifact
+        working-directory: ${{ inputs.working-directory }}
+        run: dotnet build --configuration Release --no-restore
