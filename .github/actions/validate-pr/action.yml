@@ -13,9 +13,10 @@ runs:
       if: github.event_name == 'pull_request'
       shell: bash
       run: |
-        if [[ ! "${{ github.head_ref }}" =~ ^(feat|fix|chore|docs|refactor)\/[0-9]+-[a-z0-9-]+$ ]]; then
-          echo "[ERROR] Invalid branch name: ${{ github.head_ref }}"
-          echo "[INFO] Expected format: <type>/<id>-<kebab-case-description>"
+        if [[ ! "${{ github.head_ref }}" =~ ^(feat|fix|build|chore|ci|docs|style|refactor|perf|test)\/[0-9]+-[a-z0-9-]+$ ]]; then
+          echo "[ERROR] Nomenclatura da branch inválida: ${{ github.head_ref }}"
+          echo "[INFO] Formato esperado: <tipo>/<id>-<descricao-em-kebab-case>"
+          echo "[INFO] Tipos permitidos: feat, fix, build, chore, ci, docs, style, refactor, perf, test."
           exit 1
         fi
 

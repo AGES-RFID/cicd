@@ -1,4 +1,4 @@
-name: CI .NET
+name: Continuous Integration - .NET
 
 on:
   workflow_call:
@@ -27,55 +27,99 @@ jobs:
   lint:
     name: Lint & Format
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v4
-      - uses: AGES-RFID/cicd/.github/actions/setup-dotnet@main
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
-          working-directory: ${{ inputs.working-directory }}
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+          
+      - name: Restore dependencies
+        run: dotnet restore
 
       - name: Verify formatting
-        working-directory: ${{ inputs.working-directory }}
-        run: dotnet format --verify-no-changes
+        run: |
+          echo "[INFO] Executando validação de formatação (.editorconfig)."
+          dotnet format --verify-no-changes
+          echo "[SUCCESS] Validação de formatação concluída com sucesso."
 
   test-unit:
     name: Unit Tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v4
-      - uses: AGES-RFID/cicd/.github/actions/setup-dotnet@main
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
-          working-directory: ${{ inputs.working-directory }}
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+          
+      - name: Restore dependencies
+        run: dotnet restore
 
       - name: Run unit tests
-        working-directory: ${{ inputs.working-directory }}
-        run: dotnet test Backend.Tests.Unit/ --no-restore
+        run: |
+          echo "[INFO] Executando testes unitários."
+          dotnet test Backend.Tests.Unit/ --no-restore
+          echo "[SUCCESS] Testes unitários executados com sucesso."
 
   test-integration:
     name: Integration Tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v4
-      - uses: AGES-RFID/cicd/.github/actions/setup-dotnet@main
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
-          working-directory: ${{ inputs.working-directory }}
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+          
+      - name: Restore dependencies
+        run: dotnet restore
 
       - name: Run integration tests
-        working-directory: ${{ inputs.working-directory }}
-        run: dotnet test Backend.Tests.Integration/ --no-restore
+        run: |
+          echo "[INFO] Executando testes de integração."
+          dotnet test Backend.Tests.Integration/ --no-restore
+          echo "[SUCCESS] Testes de integração executados com sucesso."
 
   build:
     name: Build
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v4
-      - uses: AGES-RFID/cicd/.github/actions/setup-dotnet@main
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
-          working-directory: ${{ inputs.working-directory }}
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+          
+      - name: Restore dependencies
+        run: dotnet restore
 
       - name: Build release artifact
-        working-directory: ${{ inputs.working-directory }}
-        run: dotnet build --configuration Release --no-restore
+        run: |
+          echo "[INFO] Compilando artefato de release."
+          dotnet build --configuration Release --no-restore
+          echo "[SUCCESS] Build executado com sucesso."

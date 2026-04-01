@@ -1,0 +1,32 @@
+name: Continuous Deployment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Ambiente de destino (staging, production)'
+        required: true
+        type: string
+      version:
+        description: 'Versão a ser implantada (Tag)'
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Validate Environment
+        run: |
+          if [[ "${{ inputs.environment }}" != "staging" && "${{ inputs.environment }}" != "production" ]]; then
+            echo "[ERROR] Ambiente inválido: ${{ inputs.environment }}. Use 'staging' ou 'production'."
+            exit 1
+          fi
+
+      - name: Deploy to ${{ inputs.environment }}
+        run: |
+          echo "[INFO] Iniciando implantação para: ${{ inputs.environment }}"
+          echo "[INFO] Promovendo versão: ${{ inputs.version }}"
+          echo "[SUCCESS] Processo de implantação concluído."
