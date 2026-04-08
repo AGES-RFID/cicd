@@ -38,7 +38,7 @@ jobs:
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
           cache: true
-          cache-dependency-path: '**/packages.lock.json'
+          cache-dependency-path: '**/*.csproj'
           
       - name: Restore dependencies
         run: dotnet restore
@@ -63,7 +63,7 @@ jobs:
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
           cache: true
-          cache-dependency-path: '**/packages.lock.json'
+          cache-dependency-path: '**/*.csproj'
           
       - name: Restore dependencies
         run: dotnet restore
@@ -88,7 +88,7 @@ jobs:
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
           cache: true
-          cache-dependency-path: '**/packages.lock.json'
+          cache-dependency-path: '**/*.csproj'
           
       - name: Restore dependencies
         run: dotnet restore
@@ -113,7 +113,7 @@ jobs:
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
           cache: true
-          cache-dependency-path: '**/packages.lock.json'
+          cache-dependency-path: '**/*.csproj'
           
       - name: Restore dependencies
         run: dotnet restore
