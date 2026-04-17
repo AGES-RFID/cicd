@@ -2,6 +2,9 @@ name: Add all pull requests to the board
 
 on:
   workflow_call:
+    secrets:
+      ADD_TO_PROJECT_PAT:
+        required: true
 
 jobs:
   add-to-project:
