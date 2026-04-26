@@ -14,7 +14,7 @@ on:
 
 jobs:
   deploy:
-    name: Deploy
+    name: Deploy to AWS Lambda (.zip)
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
@@ -24,9 +24,37 @@ jobs:
             echo "[ERROR] Ambiente inválido: ${{ inputs.environment }}. Use 'staging' ou 'production'."
             exit 1
           fi
-
-      - name: Deploy to ${{ inputs.environment }}
+      - name: Log Start
         run: |
           echo "[INFO] Iniciando implantação para: ${{ inputs.environment }}"
           echo "[INFO] Promovendo versão: ${{ inputs.version }}"
-          echo "[SUCCESS] Processo de implantação concluído."
+      - name: Checkout Backend Code
+        uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish Backend
+        run: |
+          dotnet publish Backend.API/Backend.API.csproj \
+            -c Release \
+            -o ./publish \
+            -r linux-x64 \
+            --self-contained false
+      - name: Create Zip Package
+        working-directory: ./publish
+        run: zip -r ../deploy_package.zip .
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4 #
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Update Lambda Function Code
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ secrets.LAMBDA_FUNCTION_NAME }} \
+            --zip-file fileb://deploy_package.zip
+
+      - name: Log Success
+        run: echo "[SUCCESS] Processo de implantação para ${{ inputs.environment }} concluído."
