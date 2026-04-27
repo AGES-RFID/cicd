@@ -12,6 +12,8 @@ on:
     secrets:
       GH_TOKEN:
         required: true
+      SONAR_TOKEN:
+        required: true
 
 jobs:
   pr-validation:
@@ -32,17 +34,14 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v4
-      
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
           cache: true
           cache-dependency-path: '**/*.csproj'
-          
       - name: Restore dependencies
         run: dotnet restore
-
       - name: Verify formatting
         run: |
           echo "[INFO] Executando validação de formatação (.editorconfig)."
@@ -57,22 +56,24 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v4
-      
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
           cache: true
           cache-dependency-path: '**/*.csproj'
-          
       - name: Restore dependencies
         run: dotnet restore
-
       - name: Run unit tests
         run: |
           echo "[INFO] Executando testes unitários."
-          dotnet test Backend.Tests.Unit/ --no-restore
+          dotnet test Backend.Tests.Unit/ --no-restore --collect:"XPlat Code Coverage;Format=opencover"
           echo "[SUCCESS] Testes unitários executados com sucesso."
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: '**/coverage.opencover.xml'
+          include-hidden-files: true
 
   test-integration:
     name: Integration Tests
@@ -82,44 +83,56 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v4
-      
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
           cache: true
           cache-dependency-path: '**/*.csproj'
-          
       - name: Restore dependencies
         run: dotnet restore
-
       - name: Run integration tests
         run: |
           echo "[INFO] Executando testes de integração."
-          dotnet test Backend.Tests.Integration/ --no-restore
+          dotnet test Backend.Tests.Integration/ --no-restore --collect:"XPlat Code Coverage;Format=opencover"
           echo "[SUCCESS] Testes de integração executados com sucesso."
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-integration
+          path: '**/coverage.opencover.xml'
+          include-hidden-files: true
 
   build:
     name: Build
+    needs: [test-unit, test-integration]
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v4
-      
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
           cache: true
           cache-dependency-path: '**/*.csproj'
-          
       - name: Restore dependencies
         run: dotnet restore
-
       - name: Build release artifact
         run: |
           echo "[INFO] Compilando artefato de release."
           dotnet build --configuration Release --no-restore
           echo "[SUCCESS] Build executado com sucesso."
+
+  sast:
+    name: Static Analysis
+    needs: [test-unit, test-integration]
+    uses: AGES-RFID/cicd/.github/workflows/sonar-scan.yml@ci/7-sonar-integration
+    with:
+      project-type: 'dotnet'
+      project-key: 'AGES-RFID_backend'
+      dotnet-version: ${{ inputs.dotnet-version }}
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}

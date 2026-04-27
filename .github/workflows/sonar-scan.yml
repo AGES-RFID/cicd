@@ -1,0 +1,70 @@
+name: SonarCloud Scan
+
+on:
+  workflow_call:
+    inputs:
+      project-type:
+        required: true
+        type: string
+      project-key:
+        required: true
+        type: string
+      dotnet-version:
+        type: string
+        default: "10.0.x"
+    secrets:
+      SONAR_TOKEN:
+        required: true
+      GH_TOKEN:
+        required: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          path: coverage-reports
+          merge-multiple: true
+
+      - if: inputs.project-type == 'bun'
+        run: |
+          mkdir -p coverage
+          cp -R coverage-reports/* coverage/ || true
+
+      - if: inputs.project-type == 'bun'
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - if: inputs.project-type == 'dotnet'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - if: inputs.project-type == 'dotnet'
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: 'zulu'
+
+      - if: inputs.project-type == 'dotnet'
+        run: dotnet tool install --global dotnet-sonarscanner
+
+      - if: inputs.project-type == 'dotnet'
+        run: dotnet restore
+
+      - if: inputs.project-type == 'dotnet'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          dotnet sonarscanner begin /k:"${{ inputs.project-key }}" /o:"ages-rfid" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.opencover.reportsPaths="**/coverage-reports/**/coverage.opencover.xml"
+          dotnet build --no-incremental
+          dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
