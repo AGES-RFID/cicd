@@ -36,8 +36,5 @@ jobs:
 
           git remote add gitlab "$AUTH_URL"
 
-          git fetch origin '+refs/heads/*:refs/heads/*' --update-head-ok
-
           echo "[INFO] Enviando alterações para o repositório no GitLab..."
-          git push gitlab "refs/heads/*:refs/heads/*" --force
-          git push gitlab --tags --force
+          git push gitlab HEAD:${{ github.ref }} --force
