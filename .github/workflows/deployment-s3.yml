@@ -28,7 +28,7 @@ jobs:
         run: |
           echo "[INFO] Iniciando implantação para: ${{ inputs.environment }}"
           echo "[INFO] Promovendo versão: ${{ inputs.version }}"
-      - name: Checkout Backend Code
+      - name: Checkout Frontend Code
         uses: actions/checkout@v4
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
@@ -39,16 +39,6 @@ jobs:
           echo "[INFO] Compilando artefato de produção."
           bun run build
           echo "[SUCCESS] Build executado com sucesso."
-      - name: Publish Frontend
-        run: |
-          dotnet publish Backend.API/Backend.API.csproj \
-            -c Release \
-            -o ./publish \
-            -r linux-x64 \
-            --self-contained false
-      - name: Create Zip Package
-        working-directory: ./publish
-        run: zip -r ../deploy_package.zip .
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4 #
         with:
