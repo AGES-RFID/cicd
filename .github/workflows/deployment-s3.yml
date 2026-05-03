@@ -38,8 +38,10 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build production artifact
+        env:
+          VITE_API_URL: ${{ inputs.environment == 'production' && secrets.API_URL_PRODUCTION || secrets.API_URL_STAGING }}
         run: |
-          echo "[INFO] Compilando artefato de produção."
+          echo "[INFO] Compilando artefato de produção para o ambiente: ${{ inputs.environment }}"
           bun run build
           echo "[SUCCESS] Build executado com sucesso."
 
