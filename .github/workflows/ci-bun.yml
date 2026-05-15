@@ -6,6 +6,10 @@ on:
       working-directory:
         type: string
         default: "."
+      public_api_url:
+        description: "URL da API do Backend"
+        type: string
+        required: false
     secrets:
       GH_TOKEN:
         required: true
@@ -85,6 +89,15 @@ jobs:
           echo "[INFO] Compilando artefato de produção."
           bun run build
           echo "[SUCCESS] Build executado com sucesso."
+        env:
+          PUBLIC_API_URL: ${{ inputs.public_api_url }}
+          
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+          retention-days: 1
 
   sast:
     name: Static Analysis
