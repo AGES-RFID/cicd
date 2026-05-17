@@ -8,27 +8,36 @@ on:
         required: true
         type: string
       version:
-        description: "Versão a ser implantada (Tag)"
+        description: "Versão a ser implantada (SHA ou Tag)"
         required: true
         type: string
       role-to-assume:
         description: "ARN da Role OIDC na AWS"
         required: true
         type: string
+      s3-bucket-name:
+        description: "Nome do Bucket S3 de destino"
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   deploy:
     name: Deploy to AWS S3
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
-    
-    steps:
-      - name: Log Start
-        run: |
-          echo "[INFO] Iniciando implantação para: ${{ inputs.environment }}"
-          echo "[INFO] Promovendo versão: ${{ inputs.version }}"
 
-      - name: Download build artifact
+    steps:
+      - name: Log Deployment Info
+        run: |
+          echo "[INFO] Iniciando implantação para o ambiente: ${{ inputs.environment }}"
+          echo "[INFO] Versão do artefato: ${{ inputs.version }}"
+          echo "[INFO] Bucket S3 alvo: ${{ inputs.s3-bucket-name }}"
+
+      - name: Download Build Artifact
         uses: actions/download-artifact@v4
         with:
           name: frontend-dist
@@ -40,10 +49,9 @@ jobs:
           role-to-assume: ${{ inputs.role-to-assume }}
           aws-region: us-east-2
 
-      - name: Push dist folder to S3
+      - name: Push Dist Folder to S3
         run: |
-          echo "[INFO] Pushing dist folder to S3 bucket: ${{ vars.S3_BUCKET_NAME }}"
-          aws s3 sync dist/ s3://${{ vars.S3_BUCKET_NAME }}/frontend/ \
+          aws s3 sync dist/ s3://${{ inputs.s3-bucket-name }}/frontend/ \
             --delete \
             --exclude "*.map"
-          echo "[SUCCESS] dist folder synced to S3."
+          echo "[SUCCESS] Sincronização com o S3 concluída com sucesso."

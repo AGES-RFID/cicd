@@ -6,10 +6,11 @@ on:
       working-directory:
         type: string
         default: "."
-      public_api_url:
-        description: "URL da API do Backend"
+      environment:
+        description: "Ambiente do GitHub para injetar variáveis"
         type: string
         required: false
+        default: ""
     secrets:
       GH_TOKEN:
         required: true
@@ -75,6 +76,7 @@ jobs:
     name: Build
     needs: [test-unit]
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -90,7 +92,7 @@ jobs:
           bun run build
           echo "[SUCCESS] Build executado com sucesso."
         env:
-          PUBLIC_API_URL: ${{ inputs.public_api_url }}
+          PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
           
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
