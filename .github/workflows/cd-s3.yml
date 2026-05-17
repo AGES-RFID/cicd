@@ -1,0 +1,49 @@
+name: Continuous Deployment - S3
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Ambiente de destino (staging, production)"
+        required: true
+        type: string
+      version:
+        description: "Versão a ser implantada (Tag)"
+        required: true
+        type: string
+      role-to-assume:
+        description: "ARN da Role OIDC na AWS"
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    name: Deploy to AWS S3
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    
+    steps:
+      - name: Log Start
+        run: |
+          echo "[INFO] Iniciando implantação para: ${{ inputs.environment }}"
+          echo "[INFO] Promovendo versão: ${{ inputs.version }}"
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.role-to-assume }}
+          aws-region: us-east-2
+
+      - name: Push dist folder to S3
+        run: |
+          echo "[INFO] Pushing dist folder to S3 bucket: ${{ vars.S3_BUCKET_NAME }}"
+          aws s3 sync dist/ s3://${{ vars.S3_BUCKET_NAME }}/frontend/ \
+            --delete \
+            --exclude "*.map"
+          echo "[SUCCESS] dist folder synced to S3."
