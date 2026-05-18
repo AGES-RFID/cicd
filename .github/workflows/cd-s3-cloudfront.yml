@@ -1,0 +1,99 @@
+name: Continuous Deployment - S3 & CloudFront
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      role-to-assume:
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Provision & Deploy Frontend
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+
+      - name: Checkout Infrastructure Code
+        uses: actions/checkout@v4
+        with:
+          repository: AGES-RFID/cicd
+          path: cicd-repo
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.role-to-assume }}
+          aws-region: us-east-2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Apply (Frontend)
+        working-directory: cicd-repo/terraform
+        run: |
+          terraform init
+          terraform apply -var-file=${{ inputs.environment }}.tfvars -auto-approve
+
+          TF_BUCKET=$(terraform output -raw frontend_bucket_name)
+          TF_URL=$(terraform output -raw frontend_cloudfront_url)
+
+          echo "TARGET_BUCKET=$TF_BUCKET" >> $GITHUB_ENV
+          echo "FRONTEND_URL=$TF_URL" >> $GITHUB_ENV
+
+      - name: Push Dist Folder to S3 Root
+        run: |
+          aws s3 sync dist/ s3://$TARGET_BUCKET/ --delete --exclude "*.map"
+
+      - name: Clear CloudFront CDN Cache
+        run: |
+          PURE_DOMAIN=$(echo "$FRONTEND_URL" | sed -e 's,https://,,g')
+          DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?DomainName=='$PURE_DOMAIN'].Id" --output text)
+          if [ ! -z "$DIST_ID" ] && [ "$DIST_ID" != "None" ]; then
+            aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
+          fi
+
+      - name: Write Deployment Summary
+        run: |
+          echo "### 🚀 Deploy do Frontend Realizado!" >> $GITHUB_STEP_SUMMARY
+          echo "| Informação | Detalhe |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Ambiente** | \`${{ inputs.environment }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Versão / Commit** | \`${{ inputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Bucket S3** | \`$TARGET_BUCKET\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **URL CloudFront** | [$FRONTEND_URL]($FRONTEND_URL) |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Post-Deployment Verification (Smoke Test)
+        run: |
+          MAX_RETRIES=6
+          RETRY_INTERVAL=5
+          SUCCESS=false
+          for i in $(seq 1 $MAX_RETRIES); do
+            RESPONSE=$(curl -s -w "\n%{http_code}" "$FRONTEND_URL/index.html" || true)
+            HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+            BODY=$(echo "$RESPONSE" | head -n -1)
+            if [ "$HTTP_STATUS" -eq 200 ] && echo "$BODY" | grep -q 'id="root"'; then
+              SUCCESS=true
+              break
+            fi
+            sleep $RETRY_INTERVAL
+          done
+          if [ "$SUCCESS" = false ]; then
+            exit 1
+          fi

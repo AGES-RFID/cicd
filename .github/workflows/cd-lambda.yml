@@ -4,19 +4,12 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: "Ambiente de destino (staging, production)"
         required: true
         type: string
       version:
-        description: "Versão a ser implantada (Tag/SHA)"
         required: true
         type: string
       role-to-assume:
-        description: "ARN da Role OIDC na AWS"
-        required: true
-        type: string
-      lambda-function-name:
-        description: "Nome da função Lambda alvo"
         required: true
         type: string
 
@@ -26,36 +19,34 @@ permissions:
 
 jobs:
   deploy:
-    name: Deploy to AWS Lambda
+    name: Provision & Deploy Backend
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
 
     steps:
-      - name: Log Start
-        run: |
-          echo "[INFO] Iniciando implantação para: ${{ inputs.environment }}"
-          echo "[INFO] Promovendo versão: ${{ inputs.version }}"
-          echo "[INFO] Lambda alvo: ${{ inputs.lambda-function-name }}"
-
-      - name: Checkout Backend Code
+      - name: Checkout Application Code
         uses: actions/checkout@v4
+        with:
+          path: app-repo
+
+      - name: Checkout Infrastructure Code
+        uses: actions/checkout@v4
+        with:
+          repository: AGES-RFID/cicd
+          path: cicd-repo
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
 
-      - name: Publish Backend
+      - name: Publish & Zip Backend
+        working-directory: app-repo
         run: |
-          dotnet publish Backend.API/Backend.API.csproj \
-            -c Release \
-            -o ./publish \
-            -r linux-x64 \
-            --self-contained false
-
-      - name: Create Zip Package
-        working-directory: ./publish
-        run: zip -r ../deploy_package.zip .
+          dotnet publish Backend.API/Backend.API.csproj -c Release -o ./publish -r linux-x64 --self-contained true
+          cd publish
+          mv Backend.API bootstrap
+          zip -r ../deploy-${{ inputs.version }}.zip .
 
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -63,9 +54,83 @@ jobs:
           role-to-assume: ${{ inputs.role-to-assume }}
           aws-region: us-east-2
 
-      - name: Update Lambda Function Code
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Apply (Backend & Database)
+        working-directory: cicd-repo/terraform
         run: |
+          terraform init
+          terraform apply \
+            -target=aws_s3_bucket.artifacts \
+            -target=aws_db_instance.postgres \
+            -target=aws_lambda_function.backend \
+            -target=aws_apigatewayv2_api.http_api \
+            -target=aws_apigatewayv2_stage.default \
+            -target=aws_apigatewayv2_integration.lambda_integration \
+            -target=aws_apigatewayv2_route.default_route \
+            -target=aws_lambda_permission.api_gw \
+            -var-file=${{ inputs.environment }}.tfvars -auto-approve
+
+          TF_LAMBDA=$(terraform output -raw backend_lambda_name)
+          TF_BUCKET=$(terraform output -raw artifacts_bucket_name)
+          TF_API_URL=$(terraform output -raw backend_api_url)
+
+          echo "TARGET_LAMBDA=$TF_LAMBDA" >> $GITHUB_ENV
+          echo "ARTIFACTS_BUCKET=$TF_BUCKET" >> $GITHUB_ENV
+          echo "API_URL=$TF_API_URL" >> $GITHUB_ENV
+
+      - name: Update Lambda Function Code via S3
+        working-directory: app-repo
+        run: |
+          ARTIFACT_NAME="deploy-${{ inputs.version }}.zip"
+
+          echo "[INFO] Enviando artefato para o S3..."
+          aws s3 cp $ARTIFACT_NAME s3://$ARTIFACTS_BUCKET/releases/$ARTIFACT_NAME
+
+          echo "[INFO] Instruindo a Lambda a utilizar o novo artefato..."
           aws lambda update-function-code \
-            --function-name ${{ inputs.lambda-function-name }} \
-            --zip-file fileb://deploy_package.zip
-          echo "[SUCCESS] Processo de implantação concluído."
+            --function-name $TARGET_LAMBDA \
+            --s3-bucket $ARTIFACTS_BUCKET \
+            --s3-key releases/$ARTIFACT_NAME
+
+      - name: Wait for Lambda Update Propagation
+        run: |
+          echo "[INFO] Aguardando a AWS concluir a atualização e ativação do código da Lambda..."
+          aws lambda wait function-updated --function-name $TARGET_LAMBDA
+          echo "[SUCCESS] Nova versão da Lambda está 100% ativa."
+
+      - name: Post-Deployment Verification (Smoke Test)
+        run: |
+          echo "[INFO] Iniciando validação do ambiente de $ENVIRONMENT..."
+          HEALTH_ENDPOINT="$API_URL/api"
+          echo "[INFO] Endpoint de Healthcheck: $HEALTH_ENDPOINT"
+
+          MAX_RETRIES=5
+          RETRY_INTERVAL=5
+          SUCCESS=false
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "[INFO] Tentativa $i de $MAX_RETRIES..."
+
+            RESPONSE=$(curl -s -w "\n%{http_code}" "$HEALTH_ENDPOINT" || true)
+            HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+            BODY=$(echo "$RESPONSE" | head -n -1)
+
+            if [ "$HTTP_STATUS" -eq 200 ] && echo "$BODY" | grep -q '"status"'; then
+              echo "[SUCCESS] Smoke Test passou! O backend está respondendo perfeitamente."
+              echo "Resposta da API: $BODY"
+              SUCCESS=true
+              break
+            fi
+
+            echo "[WARN] Backend ainda indisponível ou em inicialização. HTTP Status: $HTTP_STATUS"
+            echo "[INFO] Aguardando $RETRY_INTERVAL segundos..."
+            sleep $RETRY_INTERVAL
+          done
+
+          if [ "$SUCCESS" = false ]; then
+            echo "[CRITICAL ERROR] O Healthcheck falhou após bater no limite de tentativas."
+            echo "[INFO] Ativando barreira de contenção. Marcar este deployment como FALHO."
+            exit 1
+          fi
