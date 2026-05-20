@@ -39,7 +39,7 @@ jobs:
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
           cache: true
-          cache-dependency-path: '**/*.csproj'
+          cache-dependency-path: "**/*.csproj"
       - name: Restore dependencies
         run: dotnet restore
       - name: Verify formatting
@@ -61,7 +61,7 @@ jobs:
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
           cache: true
-          cache-dependency-path: '**/*.csproj'
+          cache-dependency-path: "**/*.csproj"
       - name: Restore dependencies
         run: dotnet restore
       - name: Run unit tests
@@ -72,7 +72,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-unit
-          path: '**/coverage.opencover.xml'
+          path: "**/coverage.opencover.xml"
           include-hidden-files: true
 
   test-integration:
@@ -88,7 +88,7 @@ jobs:
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
           cache: true
-          cache-dependency-path: '**/*.csproj'
+          cache-dependency-path: "**/*.csproj"
       - name: Restore dependencies
         run: dotnet restore
       - name: Run integration tests
@@ -99,7 +99,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-integration
-          path: '**/coverage.opencover.xml'
+          path: "**/coverage.opencover.xml"
           include-hidden-files: true
 
   build:
@@ -116,7 +116,7 @@ jobs:
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
           cache: true
-          cache-dependency-path: '**/*.csproj'
+          cache-dependency-path: "**/*.csproj"
       - name: Restore dependencies
         run: dotnet restore
       - name: Build release artifact
@@ -128,10 +128,10 @@ jobs:
   sast:
     name: Static Analysis
     needs: [test-unit, test-integration]
-    uses: AGES-RFID/cicd/.github/workflows/sonar-scan.yml@ci/7-sonar-integration
+    uses: AGES-RFID/cicd/.github/workflows/sonar-scan.yml@main
     with:
-      project-type: 'dotnet'
-      project-key: 'AGES-RFID_backend'
+      project-type: "dotnet"
+      project-key: "AGES-RFID_backend"
       dotnet-version: ${{ inputs.dotnet-version }}
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

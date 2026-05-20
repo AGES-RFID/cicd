@@ -6,9 +6,6 @@ on:
       environment:
         required: true
         type: string
-      version:
-        required: true
-        type: string
       role-to-assume:
         required: true
         type: string
@@ -24,10 +21,10 @@ jobs:
     environment: ${{ inputs.environment }}
 
     steps:
-      - name: Download Build Artifact
+      - name: Download Environment Artifact
         uses: actions/download-artifact@v4
         with:
-          name: frontend-dist
+          name: frontend-dist-${{ inputs.environment }}
           path: dist/
 
       - name: Checkout Infrastructure Code
@@ -45,18 +42,14 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Apply (Frontend)
+      - name: Terraform Apply (Frontend Infra)
         working-directory: cicd-repo/terraform
         run: |
           terraform init
           terraform apply -target=aws_s3_bucket.frontend -target=aws_cloudfront_distribution.frontend_cdn -var-file=${{ inputs.environment }}.tfvars -auto-approve
 
+          TARGET_BUCKET=$(terraform output -raw frontend_bucket_name)
+          echo "TARGET_BUCKET=$TARGET_BUCKET" >> $GITHUB_ENV
 
-          TF_BUCKET=$(terraform output -raw frontend_bucket_name)
-          echo "TARGET_BUCKET=$TF_BUCKET" >> $GITHUB_ENV
-
-      - name: Push Dist Folder to S3
-        run: |
-          echo "[INFO] Sincronizando código com o bucket: ${{ env.TARGET_BUCKET }}"
-          aws s3 sync dist/ s3://${{ env.TARGET_BUCKET }}/frontend/ --delete --exclude "*.map"
-          echo "[SUCCESS] Deploy Frontend concluído."
+      - name: Push to S3
+        run: aws s3 sync dist/ s3://$TARGET_BUCKET/frontend/ --delete --exclude "*.map"
