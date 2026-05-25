@@ -17,6 +17,9 @@ permissions:
   id-token: write
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   deploy:
     name: Provision & Deploy Backend
@@ -60,17 +63,16 @@ jobs:
       - name: Terraform Apply (Backend & Database)
         working-directory: cicd-repo/terraform
         run: |
-          terraform init
-          terraform apply \
-            -target=aws_s3_bucket.artifacts \
-            -target=aws_db_instance.postgres \
-            -target=aws_lambda_function.backend \
-            -target=aws_apigatewayv2_api.http_api \
-            -target=aws_apigatewayv2_stage.default \
-            -target=aws_apigatewayv2_integration.lambda_integration \
-            -target=aws_apigatewayv2_route.default_route \
-            -target=aws_lambda_permission.api_gw \
-            -var-file=${{ inputs.environment }}.tfvars -auto-approve
+          terraform init -backend-config="key=${{ inputs.environment }}/terraform.tfstate"
+          
+          # BLOCO TEMPORÁRIO DE RECONCILIAÇÃO (Remover após deploy bem sucedido)
+          if [ "${{ inputs.environment }}" = "staging" ]; then
+             terraform import -var-file=${{ inputs.environment }}.tfvars aws_iam_role.lambda_exec ages-rfid-lambda-role-staging || true
+             terraform import -var-file=${{ inputs.environment }}.tfvars aws_s3_bucket.artifacts ages-rfid-artifacts-staging || true
+             terraform import -var-file=${{ inputs.environment }}.tfvars aws_db_instance.postgres db-N3WJJUUTAFJ6FPID2AR6N5PMUM || true
+          fi
+
+          terraform apply -var-file=${{ inputs.environment }}.tfvars -auto-approve
 
           TF_LAMBDA=$(terraform output -raw backend_lambda_name)
           TF_BUCKET=$(terraform output -raw artifacts_bucket_name)
@@ -102,7 +104,7 @@ jobs:
 
       - name: Post-Deployment Verification (Smoke Test)
         run: |
-          echo "[INFO] Iniciando validação do ambiente de $ENVIRONMENT..."
+          echo "[INFO] Iniciando validação do ambiente de ${{ inputs.environment }}..."
           HEALTH_ENDPOINT="$API_URL/api"
           echo "[INFO] Endpoint de Healthcheck: $HEALTH_ENDPOINT"
 
