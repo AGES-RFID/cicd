@@ -71,7 +71,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "artifacts_lifecycle" {
     id     = "cleanup-old-artifacts"
     status = "Enabled"
 
-    filter {} 
+    filter {}
 
     expiration {
       days = 30
@@ -123,7 +123,10 @@ resource "aws_lambda_function" "backend" {
   }
 
   lifecycle {
-    ignore_changes = [filename, source_code_hash]
+    ignore_changes = [
+      filename,
+      source_code_hash
+    ]
   }
 
   depends_on = [

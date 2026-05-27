@@ -63,14 +63,7 @@ jobs:
       - name: Terraform Apply (Backend & Database)
         working-directory: cicd-repo/terraform
         run: |
-          terraform init -backend-config="key=${{ inputs.environment }}/terraform.tfstate"
-          
-          # BLOCO TEMPORÁRIO DE RECONCILIAÇÃO (Remover após deploy bem sucedido)
-          if [ "${{ inputs.environment }}" = "staging" ]; then
-             terraform import -var-file=${{ inputs.environment }}.tfvars aws_iam_role.lambda_exec ages-rfid-lambda-role-staging || true
-             terraform import -var-file=${{ inputs.environment }}.tfvars aws_s3_bucket.artifacts ages-rfid-artifacts-staging || true
-             terraform import -var-file=${{ inputs.environment }}.tfvars aws_db_instance.postgres db-N3WJJUUTAFJ6FPID2AR6N5PMUM || true
-          fi
+          terraform init -reconfigure -backend-config="key=${{ inputs.environment }}/terraform.tfstate"
 
           terraform apply -var-file=${{ inputs.environment }}.tfvars -auto-approve
 
@@ -98,9 +91,9 @@ jobs:
 
       - name: Wait for Lambda Update Propagation
         run: |
-          echo "[INFO] Aguardando a AWS concluir a atualização e ativação do código da Lambda..."
+          echo "[INFO] Aguardando a AWS concluir a atualização..."
           aws lambda wait function-updated --function-name $TARGET_LAMBDA
-          echo "[SUCCESS] Nova versão da Lambda está 100% ativa."
+          echo "[SUCCESS] Nova versão da Lambda está ativa."
 
       - name: Post-Deployment Verification (Smoke Test)
         run: |
@@ -113,26 +106,19 @@ jobs:
           SUCCESS=false
 
           for i in $(seq 1 $MAX_RETRIES); do
-            echo "[INFO] Tentativa $i de $MAX_RETRIES..."
-
             RESPONSE=$(curl -s -w "\n%{http_code}" "$HEALTH_ENDPOINT" || true)
             HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
             BODY=$(echo "$RESPONSE" | head -n -1)
 
             if [ "$HTTP_STATUS" -eq 200 ] && echo "$BODY" | grep -q '"status"'; then
-              echo "[SUCCESS] Smoke Test passou! O backend está respondendo perfeitamente."
-              echo "Resposta da API: $BODY"
+              echo "[SUCCESS] Smoke Test passou!"
               SUCCESS=true
               break
             fi
-
-            echo "[WARN] Backend ainda indisponível ou em inicialização. HTTP Status: $HTTP_STATUS"
-            echo "[INFO] Aguardando $RETRY_INTERVAL segundos..."
             sleep $RETRY_INTERVAL
           done
 
           if [ "$SUCCESS" = false ]; then
-            echo "[CRITICAL ERROR] O Healthcheck falhou após bater no limite de tentativas."
-            echo "[INFO] Ativando barreira de contenção. Marcar este deployment como FALHO."
+            echo "[ERROR] O Healthcheck falhou."
             exit 1
           fi
