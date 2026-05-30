@@ -48,12 +48,10 @@ jobs:
       - name: Terraform Apply (Frontend)
         working-directory: cicd-repo/terraform
         run: |
-          terraform init
+          terraform init -reconfigure -backend-config="key=${{ inputs.environment }}/terraform.tfstate"
           terraform apply -var-file=${{ inputs.environment }}.tfvars -auto-approve
-
           TF_BUCKET=$(terraform output -raw frontend_bucket_name)
           TF_URL=$(terraform output -raw frontend_cloudfront_url)
-
           echo "TARGET_BUCKET=$TF_BUCKET" >> $GITHUB_ENV
           echo "FRONTEND_URL=$TF_URL" >> $GITHUB_ENV
 
@@ -71,13 +69,13 @@ jobs:
 
       - name: Write Deployment Summary
         run: |
-          echo "### 🚀 Deploy do Frontend Realizado!" >> $GITHUB_STEP_SUMMARY
-          echo "| Informação | Detalhe |" >> $GITHUB_STEP_SUMMARY
+          echo "### Deploy do Frontend Realizado!" >> $GITHUB_STEP_SUMMARY
+          echo "| Informacao | Detalhe |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Ambiente** | \`${{ inputs.environment }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Versão / Commit** | \`${{ inputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Bucket S3** | \`$TARGET_BUCKET\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **URL CloudFront** | [$FRONTEND_URL]($FRONTEND_URL) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Ambiente | \`${{ inputs.environment }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Versao / Commit | \`${{ inputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Bucket S3 | \`$TARGET_BUCKET\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| URL CloudFront | [$FRONTEND_URL]($FRONTEND_URL) |" >> $GITHUB_STEP_SUMMARY
 
       - name: Post-Deployment Verification (Smoke Test)
         run: |
