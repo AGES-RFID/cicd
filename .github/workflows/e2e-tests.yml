@@ -35,6 +35,7 @@ jobs:
       - name: Run E2E
         env:
           FRONTEND_URL: ${{ inputs.target_url }}
+          PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
         run: bun run test:e2e
 
       - name: Upload Artifacts
