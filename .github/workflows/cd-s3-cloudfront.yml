@@ -12,6 +12,10 @@ on:
       role-to-assume:
         required: true
         type: string
+    outputs:
+      frontend_url:
+        description: "URL do CloudFront gerada pelo Terraform"
+        value: ${{ jobs.deploy.outputs.cloudfront_url }}
 
 permissions:
   id-token: write
@@ -22,6 +26,8 @@ jobs:
     name: Provision & Deploy Frontend
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+    outputs:
+      cloudfront_url: ${{ steps.tf_apply.outputs.tf_url }}
 
     steps:
       - name: Download Build Artifact
@@ -45,7 +51,8 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Apply (Frontend)
+      - name: Terraform Apply
+        id: tf_apply
         working-directory: cicd-repo/terraform
         run: |
           terraform init -reconfigure -backend-config="key=${{ inputs.environment }}/terraform.tfstate"
@@ -54,6 +61,7 @@ jobs:
           TF_URL=$(terraform output -raw frontend_cloudfront_url)
           echo "TARGET_BUCKET=$TF_BUCKET" >> $GITHUB_ENV
           echo "FRONTEND_URL=$TF_URL" >> $GITHUB_ENV
+          echo "tf_url=$TF_URL" >> "$GITHUB_OUTPUT"
 
       - name: Push Dist Folder to S3 Root
         run: |
@@ -77,7 +85,7 @@ jobs:
           echo "| Bucket S3 | \`$TARGET_BUCKET\` |" >> $GITHUB_STEP_SUMMARY
           echo "| URL CloudFront | [$FRONTEND_URL]($FRONTEND_URL) |" >> $GITHUB_STEP_SUMMARY
 
-      - name: Post-Deployment Verification (Smoke Test)
+      - name: Post-Deployment
         run: |
           MAX_RETRIES=6
           RETRY_INTERVAL=5

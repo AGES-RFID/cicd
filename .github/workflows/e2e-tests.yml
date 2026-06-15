@@ -1,0 +1,46 @@
+name: Continuous Testing
+
+on:
+  workflow_call:
+    inputs:
+      target_url:
+        required: true
+        type: string
+        description: Target environment URL for E2E execution
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-tests:
+    name: Playwright Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Browsers
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run E2E
+        env:
+          BASE_URL: ${{ inputs.target_url }}
+        run: bun run test:e2e
+
+      - name: Upload Artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-staging
+          path: ./playwright-report/
+          retention-days: 7
