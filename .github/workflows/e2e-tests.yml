@@ -7,6 +7,10 @@ on:
         required: true
         type: string
         description: Target environment URL for E2E execution
+      environment_name:
+        required: true
+        type: string
+        description: Target GitHub environment (e.g., staging, production)
 
 permissions:
   contents: read
@@ -16,6 +20,7 @@ jobs:
     name: Playwright Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment: ${{ inputs.environment_name }}
 
     steps:
       - name: Checkout
@@ -42,6 +47,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-staging
+          name: playwright-report-${{ inputs.environment_name }}
           path: ./playwright-report/
           retention-days: 7
